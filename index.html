@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>城北シールド 掘進位置図</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: "Hiragino Sans", "Meiryo", sans-serif;
+    background:#f4f6f8;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    width: 100%;
+    max-width: 1600px;
+    padding: 2vh 3vw;
+  }
+  h1 {
+    color:#2c3e50;
+    font-size: clamp(28px, 4vw, 56px);
+    margin: 0 0 2vh 0;
+    text-align: center;
+  }
+  .card {
+    background:#fff;
+    border-radius: 16px;
+    padding: 3vh 3vw;
+    box-shadow:0 4px 16px rgba(0,0,0,0.12);
+  }
+  .card h3 {
+    margin-top:0;
+    margin-bottom: 1.5vh;
+    font-size: clamp(20px, 2.2vw, 32px);
+    color:#2c3e50;
+  }
+
+  /* ▼▼▼ 16:9の枠(aspect-ratioを使わず padding-top トリックで実装) ▼▼▼ */
+  .route-wrap {
+    position:relative;
+    width: 100%;
+    height: 0;
+    padding-top: 56.25%; /* 9 ÷ 16 = 0.5625 → 16:9を維持 */
+    border:2px solid #999;
+    border-radius:12px;
+    overflow:hidden;
+    background:#fafafa;
+  }
+  /* ▲▲▲ ここまで ▲▲▲ */
+
+  .route-svg {
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    height:100%;
+    display:block;
+  }
+
+  .status-msg {
+    font-size: clamp(12px, 1.1vw, 16px);
+    color:#888;
+    margin-top: 1.5vh;
+    text-align:right;
+  }
+  .status-msg.error { color:#e74c3c; }
+
+  .shake-group {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: digShake 0.45s ease-in-out infinite;
+  }
+  @keyframes digShake {
+    0%   { transform: translate(0, 0); }
+    20%  { transform: translate(-1.5px, -1px); }
+    40%  { transform: translate(1px, 1px); }
+    60%  { transform: translate(-1px, 0.5px); }
+    80%  { transform: translate(1px, -0.5px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  .dirt-particle {
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0;
+    animation: dirtFly 0.9s ease-out infinite;
+  }
+  @keyframes dirtFly {
+    0%   { transform: translate(0,0) scale(1);   opacity: 0.9; }
+    100% { transform: translate(-10px, -15px) scale(0.3); opacity: 0; }
+  }
+  .dirt-particle.down { animation-name: dirtFlyDown; }
+  @keyframes dirtFlyDown {
+    0%   { transform: translate(0,0) scale(1);   opacity: 0.9; }
+    100% { transform: translate(-9px, 15px) scale(0.3); opacity: 0; }
+  }
+
+  .segment-tick {
+    opacity: 0;
+    animation: tickFade 0.4s ease forwards;
+  }
+  @keyframes tickFade {
+    from { opacity:0; }
+    to   { opacity:1; }
+  }
+
+  .route-label { font-size:15px; fill:#333; font-weight:bold; paint-order: stroke; stroke:#fff; stroke-width:3px; }
+  .route-marker { fill:#2c3e50; stroke:#fff; stroke-width:1.5; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🚧 城北シールド 掘進位置図</h1>
+
+  <div class="card">
+    <h3>進捗地図</h3>
+
+    <div class="route-wrap">
+      <svg id="routeSvg" class="route-svg" viewBox="0 0 1060 770" preserveAspectRatio="xMidYMid meet">
+
+        <g id="scaleGroup" transform="translate(53,38.5) scale(0.9)">
+
+          <image href="map.png" x="40" y="0" width="1040" height="760"
+                 preserveAspectRatio="none" opacity="0.75" />
+
+          <polyline id="routeOutline" fill="none" stroke="#13263b" stroke-width="40"
+                    stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+          <polyline id="routeBg" fill="none" stroke="#e3e3e3" stroke-width="34"
+                    stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+          <polyline id="routeExcavated" fill="none" stroke="#bcdffb" stroke-width="34"
+                    stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+          <g id="segmentTicks"></g>
+          <g id="midShaftGroup"></g>
+          <circle id="startMarker" class="route-marker" r="7" />
+          <circle id="endMarker" class="route-marker" r="7" />
+          <text id="startLabel" class="route-label" text-anchor="middle">発進立坑</text>
+          <text id="endLabel" class="route-label" text-anchor="start">到達位置</text>
+
+          <g id="shieldMachine">
+            <g class="shake-group">
+              <rect x="0"  y="-17" width="46" height="34" fill="#f0a683" stroke="#13263b" stroke-width="1.2"/>
+              <rect x="46" y="-17" width="46" height="34" fill="#f0a683" stroke="#13263b" stroke-width="1.2"/>
+              <rect x="92" y="-17" width="14" height="34" fill="#2c6693" stroke="#13263b" stroke-width="1.2"/>
+              <polygon points="106,-15 124,0 106,15" fill="#2c6693" stroke="#13263b" stroke-width="1.2"/>
+            </g>
+          </g>
+
+          <g id="dirtParticles">
+            <circle class="dirt-particle"      cx="0" cy="-6" r="2.6" fill="#8b5a2b"/>
+            <circle class="dirt-particle down" cx="0" cy="2"  r="3.2" fill="#6b4423" style="animation-delay:0.15s"/>
+            <circle class="dirt-particle"      cx="0" cy="-2" r="2.2" fill="#8b5a2b" style="animation-delay:0.3s"/>
+            <circle class="dirt-particle down" cx="0" cy="6"  r="2.6" fill="#6b4423" style="animation-delay:0.45s"/>
+          </g>
+
+        </g>
+      </svg>
+    </div>
+
+    <div class="status-msg" id="statusMsg">データ取得中...</div>
+  </div>
+</div>
+
+<script>
+  const CONFIG = {
+    distTotal: 1600,
+    midShaftDist: 800,
+    routePoints: [
+      { x: 120, y: 745 },
+      { x: 155, y: 590 },
+      { x: 830, y: 578 },
+      { x: 855, y: 310 },
+      { x: 1020, y: 310 },
+      { x: 1020, y: 10  }
+    ]
+  };
+
+  const GAS_API_URL =
+    "https://script.google.com/macros/s/AKfycbzt5C7cCo3mDLYYNGK8dBCZLHeRTPFKaVV79bccv2Od_ChVDRnW7MMZZTHriKNj2BOj/exec";
+
+  const SEGMENT_DISTANCE_M = 20;
+  const TUBE_WIDTH = 34;
+  const MACHINE_ORIGINAL_LENGTH = 124;
+  const MACHINE_SCALE_X = 0.25;
+  const MACHINE_EFFECTIVE_LENGTH = MACHINE_ORIGINAL_LENGTH * MACHINE_SCALE_X;
+
+  function buildSegments(points) {
+    const segs = [];
+    let cum = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i], p2 = points[i + 1];
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      segs.push({ p1, p2, dx, dy, len, cumStart: cum, cumEnd: cum + len,
+                  angle: Math.atan2(dy, dx) });
+      cum += len;
+    }
+    return { segs, total: cum };
+  }
+
+  const { segs, total: totalPxLength } = buildSegments(CONFIG.routePoints);
+
+  function pointsToStr(pts) {
+    return pts.map(p => `${p.x},${p.y}`).join(" ");
+  }
+
+  function renderMap(distNow) {
+    const distTotal = CONFIG.distTotal;
+    const unitsPerMeter = totalPxLength / distTotal;
+
+    function metersToUnits(m) {
+      return Math.max(0, Math.min(m, distTotal)) * unitsPerMeter;
+    }
+    function getPointAndAngle(meters) {
+      const units = metersToUnits(meters);
+      for (const seg of segs) {
+        if (units <= seg.cumEnd || seg === segs[segs.length - 1]) {
+          const localLen = Math.max(0, units - seg.cumStart);
+          const t = seg.len === 0 ? 0 : localLen / seg.len;
+          return { x: seg.p1.x + seg.dx * t, y: seg.p1.y + seg.dy * t, angle: seg.angle };
+        }
+      }
+      const last = segs[segs.length - 1];
+      return { x: last.p2.x, y: last.p2.y, angle: last.angle };
+    }
+    function getExcavatedPoints(meters) {
+      const units = metersToUnits(meters);
+      const pts = [CONFIG.routePoints[0]];
+      for (const seg of segs) {
+        if (units >= seg.cumEnd) {
+          pts.push(seg.p2);
+        } else if (units > seg.cumStart) {
+          const t = (units - seg.cumStart) / seg.len;
+          pts.push({ x: seg.p1.x + seg.dx * t, y: seg.p1.y + seg.dy * t });
+          break;
+        } else break;
+      }
+      return pts;
+    }
+
+    const allPtsStr = pointsToStr(CONFIG.routePoints);
+    document.getElementById('routeOutline').setAttribute('points', allPtsStr);
+    document.getElementById('routeBg').setAttribute('points', allPtsStr);
+
+    const machineLengthMeters = MACHINE_EFFECTIVE_LENGTH / unitsPerMeter;
+    const tipDistance = distNow;
+    const backDistance = Math.max(0, tipDistance - machineLengthMeters);
+
+    const tip = getPointAndAngle(tipDistance);
+    const tipAngleDeg = tip.angle * 180 / Math.PI;
+
+    const excavatedPts = getExcavatedPoints(backDistance);
+    document.getElementById('routeExcavated').setAttribute('points', pointsToStr(excavatedPts));
+
+    const backAnchor = {
+      x: tip.x - MACHINE_EFFECTIVE_LENGTH * Math.cos(tip.angle),
+      y: tip.y - MACHINE_EFFECTIVE_LENGTH * Math.sin(tip.angle)
+    };
+    document.getElementById('shieldMachine').setAttribute(
+      'transform',
+      `translate(${backAnchor.x},${backAnchor.y}) rotate(${tipAngleDeg}) scale(${MACHINE_SCALE_X},1)`
+    );
+    document.getElementById('dirtParticles').setAttribute(
+      'transform',
+      `translate(${tip.x},${tip.y}) rotate(${tipAngleDeg})`
+    );
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const tickGroup = document.getElementById('segmentTicks');
+    tickGroup.innerHTML = '';
+    let tickIndex = 0;
+    for (let d = SEGMENT_DISTANCE_M; d <= backDistance; d += SEGMENT_DISTANCE_M) {
+      const p = getPointAndAngle(d);
+      const perp = { x: -Math.sin(p.angle), y: Math.cos(p.angle) };
+      const half = TUBE_WIDTH / 2 + 3;
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', p.x - perp.x * half);
+      line.setAttribute('y1', p.y - perp.y * half);
+      line.setAttribute('x2', p.x + perp.x * half);
+      line.setAttribute('y2', p.y + perp.y * half);
+      line.setAttribute('stroke', '#13263b');
+      line.setAttribute('stroke-width', '1.5');
+      line.setAttribute('class', 'segment-tick');
+      line.style.animationDelay = (tickIndex * 0.03) + 's';
+      tickGroup.appendChild(line);
+      tickIndex++;
+    }
+
+    const midGroup = document.getElementById('midShaftGroup');
+    midGroup.innerHTML = '';
+    const midPoint = getPointAndAngle(CONFIG.midShaftDist);
+    const midPerp = { x: -Math.sin(midPoint.angle), y: Math.cos(midPoint.angle) };
+    const midHalf = TUBE_WIDTH / 2 + 10;
+
+    const midLine = document.createElementNS(svgNS, 'line');
+    midLine.setAttribute('x1', midPoint.x - midPerp.x * midHalf);
+    midLine.setAttribute('y1', midPoint.y - midPerp.y * midHalf);
+    midLine.setAttribute('x2', midPoint.x + midPerp.x * midHalf);
+    midLine.setAttribute('y2', midPoint.y + midPerp.y * midHalf);
+    midLine.setAttribute('stroke', '#e74c3c');
+    midLine.setAttribute('stroke-width', '4');
+    midGroup.appendChild(midLine);
+
+    const midCircle = document.createElementNS(svgNS, 'circle');
+    midCircle.setAttribute('cx', midPoint.x);
+    midCircle.setAttribute('cy', midPoint.y);
+    midCircle.setAttribute('r', 6);
+    midCircle.setAttribute('fill', '#e74c3c');
+    midCircle.setAttribute('stroke', '#fff');
+    midCircle.setAttribute('stroke-width', 1.5);
+    midGroup.appendChild(midCircle);
+
+    const midLabel = document.createElementNS(svgNS, 'text');
+    midLabel.setAttribute('x', midPoint.x);
+    midLabel.setAttribute('y', midPoint.y - 22);
+    midLabel.setAttribute('text-anchor', 'middle');
+    midLabel.setAttribute('class', 'route-label');
+    midLabel.textContent = '中間立坑';
+    midGroup.appendChild(midLabel);
+
+    const startPt = CONFIG.routePoints[0];
+    const endPt = CONFIG.routePoints[CONFIG.routePoints.length - 1];
+    document.getElementById('startMarker').setAttribute('cx', startPt.x);
+    document.getElementById('startMarker').setAttribute('cy', startPt.y);
+    document.getElementById('endMarker').setAttribute('cx', endPt.x);
+    document.getElementById('endMarker').setAttribute('cy', endPt.y);
+    document.getElementById('startLabel').setAttribute('x', startPt.x);
+    document.getElementById('startLabel').setAttribute('y', startPt.y + 25);
+    document.getElementById('endLabel').setAttribute('x', endPt.x + 14);
+    document.getElementById('endLabel').setAttribute('y', endPt.y + 18);
+  }
+
+  async function fetchLatestDistance() {
+    const res = await fetch(GAS_API_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("取得失敗: " + res.status);
+    const json = await res.json();
+
+    const distNow = Number(json.distance);
+    if (isNaN(distNow)) throw new Error("距離の値が数値ではありません");
+
+    return { distNow, dateLabel: json.date };
+  }
+
+  function updateStatus(msg, isError) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.classList.toggle('error', !!isError);
+  }
+
+  async function init() {
+    try {
+      const { distNow, dateLabel } = await fetchLatestDistance();
+      renderMap(distNow);
+      updateStatus(`最新データ:${dateLabel}時点 / 取得成功`);
+    } catch (err) {
+      console.error(err);
+      renderMap(0);
+      updateStatus("データ取得に失敗しました。GASのデプロイ設定を確認してください。", true);
+    }
+  }
+
+  init();
+  setInterval(init, 5 * 60 * 1000);
+</script>
+</body>
+</html>
